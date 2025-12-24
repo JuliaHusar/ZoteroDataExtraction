@@ -44,15 +44,19 @@ individual maps. I've already tried that, so it might be worth it to try the fir
 
 
 class CollectionObj(PrintString):
-    def __init__(self, collection_id: int, collection_name: str, parent_collection_id: int):
+    def __init__(self, collection_id: int, collection_name: str, library:'BaseLibrary', parent_collection_id: int):
         self.collection_id = collection_id
         self.collection_name = collection_name
+        self.library: BaseLibrary = library
         self.parent_collection_ID= parent_collection_id
         self.item_obj_map: dict[int, 'ItemObj'] = {}
-    def add_item(self, item_obj_list: list['ItemObj']):
+    def add_item_obj(self, item_obj_list: list['ItemObj']):
         for item in item_obj_list:
             item.collection = self
             self.item_obj_map[item.itemID] = item
+    @property
+    def library_id(self) -> int:
+        return self.library.library_id
 
 class ItemObj(PrintString):
     def __init__(self, item_id:int, collection: CollectionObj, annotation_obj_list: list):
@@ -69,3 +73,8 @@ class BaseLibrary(PrintString):
         self.library_id = library_id
         self.library_type = library_type
         self.collectionMap: dict[int, CollectionObj] = {}
+    def add_collection(self, raw_collection_list: list[CollectionObj], library: 'BaseLibrary'):
+        for item in raw_collection_list:
+            collection_id, collection_name, parent_id = item
+            item = CollectionObj(collection_id, collection_name, library, parent_id)
+            self.collectionMap[item.collection_id] = item
