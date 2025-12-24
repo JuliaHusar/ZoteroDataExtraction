@@ -1,16 +1,17 @@
 import sqlite3
 import logging
-from sqlite3 import OperationalError
+from typing import Tuple
 
 from pandas.io.sql import SQLiteDatabase
 
-from src.models import CollectionObj, ItemObj, TagObj
+from src.models import CollectionObj, ItemObj, AnnotationObj, BaseLibrary
+
 logger = logging.getLogger(__name__)
 file_path = "zotero.sqlite"
 
 
 # Initial connection, for now it's directory, but ideally we want users to be able to make a copy of this.... just in case
-
+global library
 
 # global vars
 itemTagList: list[object] = []
@@ -19,41 +20,70 @@ itemTagList: list[object] = []
  #   self.TagObj1
 
 
-collectionMap: dict[int, CollectionObj] = {}
 itemMap: dict[int, ItemObj] = {}
-annotation_map: dict[int, TagObj] = {}
+annotation_map: dict[Tuple[int, int], AnnotationObj] = {}
 relationshipList = []
 noIdCount: int = 0
 cursor: SQLiteDatabase
 connection: SQLiteDatabase
 
+def connect():
+    global connection
+    global cursor
+    try:
+        connection = sqlite3.connect(f"file:{file_path}?mode=rw", uri=True)
+        cursor = connection.cursor()
+    except Exception as e:
+        print(f"Database Connection failed: {e}. Check to see if the zotero.sqlite file is located in the root directory, and it is spelled exactly as <zotero.sqlite>, or whatever value you have in file_path")
+        raise Exception
+
+
+def instantiate_library():
+    global library
+    library_query = ("SELECT libraries.libraryID, libraries.type FROM libraries")
+    cursor_execute = (cursor.execute(library_query))
+    library_list = cursor_execute.fetchall()
+    #Return however many base libraries you need. For example if you're doing 4 libraries, return a list of four base collections
+    library = BaseLibrary(library_list[0][0], library_list[0][1])
+    return library
 
 def get_annotations():
     """:returns MAP of annotations and tags within these annotations
     :type Annotations are individual items that have their own itemID, but they also have a parent id
     The parent id relates the item to a central node or 'item'.
-    Many-Many relationship"""
+    1-Many relationship"""
     global noIdCount
-    tag_query = ("SELECT tags.tagID, tags.name, itemTags.itemID, itemTags.type, itemAnnotations.parentItemID,"
+    tag_query = ("SELECT itemAnnotations.itemID, itemAnnotations.parentItemID,"
              "itemAnnotations.text, itemAnnotations.comment, itemAnnotations.color "
-             "FROM tags FULL JOIN itemTags ON tags.tagID = itemTags.tagID INNER JOIN itemAnnotations ON itemAnnotations.itemID = itemTags.itemID ")
+             "FROM itemAnnotations")
     cursor_execute = cursor.execute(tag_query)
     #print([i[0] for i in cursor.description])
     annotation_list = cursor_execute.fetchall()
     for annotation_item in annotation_list:
         try:
+            #Needs to be tagID
             parent_key: int = annotation_item[2]
-            annotation_map[parent_key] = TagObj(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
+            tag_id: int = annotation_item[0]
+
+            annotation_map[(parent_key, tag_id)] = AnnotationObj(parent_key, annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
         except (RuntimeError, TypeError, NameError):
             # If for whatever reason there isn't a parent key
             parent_key = noIdCount
-            annotation_map[parent_key] = TagObj(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
+            annotation_map[parent_key] = AnnotationObj(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
             noIdCount = + 1
     return annotation_map
 
+def get_tags():
+    """:returns map of tags, their names, types, and relevant ID's: Dict[TagID:[ItemID, type, name]]
+    Many-Many Relationship in relation to item entities"""
+    query = ("SELECT itemTags.tagID, itemTags.itemID, itemTags.type, tags.name "
+             "FROM itemTags INNER JOIN tags ON tags.tagID = itemTags.tagID ")
+    cursor_execute = cursor.execute(query)
+    return cursor_execute.fetchall()
+
+
 def get_items():
-    """:returns map of individual items.
-    """
+    """:returns map of individual items."""
     item_query = (
         # Parent collection id is not needed for items, because that logic will be covered in
         # obtaining the actual collections in get_collections function
@@ -68,35 +98,27 @@ def get_items():
     return itemMap
 
 def get_collections():
-    """:returns a list of all collections"""
+    """:returns a list of all collections
+    library ID can be range from 1 to n, depending on how what library the user wants to draw from (most users will have 1)
+    Future update should allow to combine all libraries using relational algebra or smth
+    """
     collection_query = ("SELECT collections.collectionID, collections.collectionName, collections.parentCollectionID "
-        " FROM collections")
+        " FROM collections WHERE collections.libraryID == 1")
     cursor_execute = (cursor.execute(collection_query))
-   # print([i[0] for i in cursor.description])
-    return cursor_execute.fetchall()
+    collection_list = cursor_execute.fetchall()
+    return collection_list
 
 def main():
-    global connection
-    global cursor
-    try:
-        connection = sqlite3.connect(f"file:{file_path}?mode=rw", uri=True)
-        cursor = connection.cursor()
-        print(cursor.execute("SELECT 1").fetchall())
-    except Exception as e:
-        print(f"Database Connection failed: {e}. Check to see if the zotero.sqlite file is located in the root directory, and it is spelled exactly as <zotero.sqlite>, or whatever value you have in file_path")
-        raise Exception
+    connect()
+    instantiate_library()
+    get_collections()
     get_annotations()
-    itemList = get_items()
-    collectionList = get_collections()
     get_items()
 
     """
     If parentCollectionID === None
         parentCollectionID = 'main'
     """
-
-    for item in annotation_map.values():
-        print(item)
 
 """for i, collectionItem in enumerate(collectionMap.values()):
     for itemObj in
