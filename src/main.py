@@ -82,7 +82,7 @@ def get_collection_items(library: BaseLibrary, raw_collection_list: list[tuple])
         # Parent collection id is not needed for items, because items will be contained with collection map
         "SELECT collectionItems.collectionID, collectionItems.itemID, collections.collectionName"
         " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID ")
-    # TODO: Add error handling for the list retrieval and then subsequent handling
+    # Add error handling for the list retrieval and then subsequent handling
     cursor_execute = (cursor.execute(item_query))
     item_list = cursor_execute.fetchall()
     library.add_collection(raw_collection_list)
@@ -115,7 +115,7 @@ def get_collections(library: BaseLibrary):
     collection_query = ("SELECT collections.collectionID, collections.collectionName, collections.parentCollectionID "
         " FROM collections WHERE collections.libraryID == ?")
     cursor_execute = (cursor.execute(collection_query, (library.library_id,)))
-    # TODO: Add error handling here if it can't fetch everything so the returned collection is empty
+    # Add error handling here if it can't fetch everything so the returned collection is empty
     collection_list = cursor_execute.fetchall()
     return collection_list
 
