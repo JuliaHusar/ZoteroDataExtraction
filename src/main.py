@@ -1,10 +1,11 @@
 import sqlite3
 import logging
+from inspect import stack
 from typing import Tuple
 
 from pandas.io.sql import SQLiteDatabase
 
-from src.models import CollectionObj, ItemObj, AnnotationObj, BaseLibrary
+from src.models import ItemObj, Annotation, BaseLibrary, TagMap
 
 # Initial connection, for now it's directory, but ideally we want users to be able to make a copy of this.... just in case
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ cursor: SQLiteDatabase
 connection: SQLiteDatabase
 
 itemMap: dict[int, ItemObj] = {}
-annotation_map: dict[Tuple[int, int], AnnotationObj] = {}
+annotation_map: dict[Tuple[int, int], Annotation] = {}
 relationshipList = []
 noIdCount: int = 0
 
@@ -54,11 +55,11 @@ def get_annotations():
             parent_key: int = annotation_item[2]
             tag_id: int = annotation_item[0]
 
-            annotation_map[(parent_key, tag_id)] = AnnotationObj(parent_key, annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
+            annotation_map[(parent_key, tag_id)] = Annotation(parent_key, annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
         except (RuntimeError, TypeError, NameError):
             # If for whatever reason there isn't a parent key
             parent_key = noIdCount
-            annotation_map[parent_key] = AnnotationObj(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
+            annotation_map[parent_key] = Annotation(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
             noIdCount = + 1
     return annotation_map
 
@@ -68,23 +69,43 @@ def get_tags():
     query = ("SELECT itemTags.tagID, itemTags.itemID, itemTags.type, tags.name "
              "FROM itemTags INNER JOIN tags ON tags.tagID = itemTags.tagID ")
     cursor_execute = cursor.execute(query)
-    return cursor_execute.fetchall()
+    raw_tag_list = cursor_execute.fetchall()
+    tag_map_obj = TagMap(raw_tag_list)
+    tag_map_obj.process_raw_tuples()
+    return tag_map_obj
 
 
-def get_items():
-    """:returns map of individual items."""
+def get_collection_items(library: BaseLibrary, raw_collection_list: list[tuple]):
+    """:returns list of collectionItems. The way that Zotero is structured, literally EVERYTHING is an item,
+    including annotations (and annotations are related to collection items)"""
     item_query = (
-        # Parent collection id is not needed for items, because that logic will be covered in
-        # obtaining the actual collections in get_collections function
+        # Parent collection id is not needed for items, because items will be contained with collection map
         "SELECT collectionItems.collectionID, collectionItems.itemID, collections.collectionName"
-        " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID")
+        " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID ")
+    # TODO: Add error handling for the list retrieval and then subsequent handling
     cursor_execute = (cursor.execute(item_query))
-    #print([i[0] for i in cursor.description])
     item_list = cursor_execute.fetchall()
-    for item_obj in item_list:
-        itemMap[item_obj[1]] = item_obj[1]
-        #itemMap[parent_item[0]] = ItemObj(parent_item[0], parent_item[3], parent_item[2], {})
-    return itemMap
+    library.add_collection(raw_collection_list)
+    library.populate_collections(item_list)
+    return
+
+def get_all_items(library: BaseLibrary):
+    item_query = (
+        "SELECT items.itemID, items.itemTypeID, items.dateAdded, items.clientDateModified "
+        "FROM items WHERE items.libraryID == ?")
+    cursor_execute = (cursor.execute(item_query,(library.library_id,)))
+    item_list = cursor_execute.fetchall()
+    return
+
+def get_field_items():
+    field_query = (
+        "SELECT itemData.itemID, itemData.fieldID, itemData.valueID, itemDataValues.value, fields.fieldName "
+        "FROM itemData LEFT JOIN fields ON itemData.fieldID = fields.fieldID"
+        " LEFT JOIN itemDataValues ON itemData.valueID = itemDataValues.valueID"
+    )
+    cursor_execute = cursor.execute(field_query)
+    item_list = cursor_execute.fetchall()
+    return item_list
 
 def get_collections(library: BaseLibrary):
     """:returns a list of all collections
@@ -94,20 +115,28 @@ def get_collections(library: BaseLibrary):
     collection_query = ("SELECT collections.collectionID, collections.collectionName, collections.parentCollectionID "
         " FROM collections WHERE collections.libraryID == ?")
     cursor_execute = (cursor.execute(collection_query, (library.library_id,)))
+    # TODO: Add error handling here if it can't fetch everything so the returned collection is empty
     collection_list = cursor_execute.fetchall()
-    library.add_collection(collection_list, library)
-    return library.collectionMap
+    return collection_list
 
 def main():
     # Define Vars
+    """Algorithm: Bottom-up Approach
+    1. Retrieve every single tag and its attributes (name, type) and map the
+    tag object to an itemID + TagID TUPLE (this itemID can be a publishedItemObj or an annotationObj)
+    2. Retrieve all collectionItems and itemAnnotations and instantiate them with the itemID serving as a key
+    3. Insert all items into
+
+    """
     library: BaseLibrary
 
-
     connect()
+    tag_map = get_tags()
     library = instantiate_library()
-    get_collections(library)
+    get_all_items(library)
+    collection_list = get_collections(library)
+    get_collection_items(library, collection_list)
     get_annotations()
-    get_items()
 
     """
     If parentCollectionID === None

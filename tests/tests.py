@@ -2,8 +2,8 @@ import unittest
 
 from pandas.io.sql import SQLiteDatabase
 
-from src.main import get_annotations, itemMap, annotation_map, get_items, get_collections, instantiate_library, connect
-from src.models import TagObj, ItemObj, CollectionObj, BaseLibrary
+from src.main import get_annotations, itemMap, annotation_map, get_collection_items, get_collections, instantiate_library, connect
+from src.models import Tag, ItemObj, Collection, BaseLibrary
 
 cursor: SQLiteDatabase
 connection: SQLiteDatabase
@@ -26,8 +26,8 @@ class TestDataRetrieval(unittest.TestCase):
         connect()
         test_library = BaseLibrary(1, "User")
         first_row = (get_collections(test_library).get(14))
-        test_collection_object = CollectionObj(1, "Test Collection", test_library, 1)
-        self.assertIsInstance(first_row, CollectionObj, "Not matched")
+        test_collection_object = Collection(1, "Test Collection", test_library, 1)
+        self.assertIsInstance(first_row, Collection, "Not matched")
 
 
 def get_shape(o):
