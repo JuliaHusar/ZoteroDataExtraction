@@ -18,11 +18,10 @@ class Tag(PrintString):
         self.item_id = item_id
 
 class TagMap(PrintString):
-    def __init__(self, raw_tag_list: list[tuple]):
-        self.raw_tag_list = raw_tag_list
+    def __init__(self):
         self.tag_map: dict[Tuple[int, int], Tag] = {}
-    def process_raw_tuples(self):
-        for item in self.raw_tag_list:
+    def process_raw_tuples(self, raw_tag_list: list[tuple]):
+        for item in raw_tag_list:
             tag_id, item_id, tag_type, name = item
             self.tag_map[(item_id, tag_id)] = Tag(tag_id, name, tag_type, item_id)
 

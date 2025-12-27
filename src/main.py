@@ -44,23 +44,25 @@ def get_annotations():
     The parent id relates the item to a central node or 'item'.
     1-Many relationship"""
     global noIdCount
-    tag_query = ("SELECT itemAnnotations.itemID, itemAnnotations.parentItemID,"
+    annotation_query = ("SELECT itemAnnotations.itemID, itemAnnotations.parentItemID,"
              "itemAnnotations.text, itemAnnotations.comment, itemAnnotations.color "
-             "FROM itemAnnotations")
-    cursor_execute = cursor.execute(tag_query)
+             "FROM itemAnnotations INNER JOIN on ") #TODO: inner join on all of the necessary values from the itemObj
+    cursor_execute = cursor.execute(annotation_query)
     annotation_list = cursor_execute.fetchall()
     for annotation_item in annotation_list:
+
+        """
         try:
             #Needs to be tagID
             parent_key: int = annotation_item[2]
             tag_id: int = annotation_item[0]
-
             annotation_map[(parent_key, tag_id)] = Annotation(parent_key, annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
         except (RuntimeError, TypeError, NameError):
             # If for whatever reason there isn't a parent key
             parent_key = noIdCount
             annotation_map[parent_key] = Annotation(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
             noIdCount = + 1
+            """
     return annotation_map
 
 def get_tags():
@@ -70,8 +72,8 @@ def get_tags():
              "FROM itemTags INNER JOIN tags ON tags.tagID = itemTags.tagID ")
     cursor_execute = cursor.execute(query)
     raw_tag_list = cursor_execute.fetchall()
-    tag_map_obj = TagMap(raw_tag_list)
-    tag_map_obj.process_raw_tuples()
+    tag_map_obj = TagMap()
+    tag_map_obj.process_raw_tuples(raw_tag_list)
     return tag_map_obj
 
 
@@ -81,12 +83,14 @@ def get_collection_items(library: BaseLibrary, raw_collection_list: list[tuple])
     item_query = (
         # Parent collection id is not needed for items, because items will be contained with collection map
         "SELECT collectionItems.collectionID, collectionItems.itemID, collections.collectionName"
-        " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID ")
+        " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID"
+        " WHERE collections.libraryID == ?")
     # Add error handling for the list retrieval and then subsequent handling
-    cursor_execute = (cursor.execute(item_query))
-    item_list = cursor_execute.fetchall()
+    cursor_execute = (cursor.execute(item_query, (library.library_id,)))
+    collection_item_list = cursor_execute.fetchall()
+
     library.add_collection(raw_collection_list)
-    library.populate_collections(item_list)
+    library.populate_collections(collection_item_list)
     return
 
 def get_all_items(library: BaseLibrary):
@@ -96,6 +100,7 @@ def get_all_items(library: BaseLibrary):
     cursor_execute = (cursor.execute(item_query,(library.library_id,)))
     item_list = cursor_execute.fetchall()
     return
+
 
 def get_field_items():
     field_query = (
@@ -123,7 +128,7 @@ def main():
     # Define Vars
     """Algorithm: Bottom-up Approach
     1. Retrieve every single tag and its attributes (name, type) and map the
-    tag object to an itemID + TagID TUPLE (this itemID can be a publishedItemObj or an annotationObj)
+    tag object to an itemID + TagID TUPLE (this itemID can be a publishedItemObj or an annotationObj) (DONE)
     2. Retrieve all collectionItems and itemAnnotations and instantiate them with the itemID serving as a key
     3. Insert all items into
 
