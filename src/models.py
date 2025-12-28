@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Tuple
+from typing import NamedTuple, Tuple
+from venv import create
 
 class_registry = {}
 
@@ -17,14 +18,38 @@ class Tag(PrintString):
         self.tag_type = tag_type
         self.item_id = item_id
 
+
+class AnnotationKey(NamedTuple):
+    item_id: int
+    parent_item_id: int
+
+class TagKey(NamedTuple):
+    item_id: int
+    tag_id: int
+
+
+
 class TagMap(PrintString):
     def __init__(self):
-        self.tag_map: dict[Tuple[int, int], Tag] = {}
+        self.tag_map_of_tagmaps: dict[int, dict[int, Tag]] = {}
+        # Remember that it's sorted by ASC id already from SQL DB
+    def populate_parent_item_tag_map(self, tag_parent_id: int):
+        self.tag_map_of_tagmaps[tag_parent_id] = {}
+        return
+    def populate_individual_tags(self, individual_tag: Tag, current_parent_id: int):
+        self.tag_map_of_tagmaps[current_parent_id][individual_tag.tag_id] = individual_tag
+        return
+
     def process_raw_tuples(self, raw_tag_list: list[tuple]):
+        item_id_counter: int = 0
         for item in raw_tag_list:
             tag_id, item_id, tag_type, name = item
-            self.tag_map[(item_id, tag_id)] = Tag(tag_id, name, tag_type, item_id)
-
+            individual_tag = Tag(tag_id, name, tag_type, item_id)
+            if item_id != item_id_counter:
+                self.populate_parent_item_tag_map(item_id)
+                item_id_counter = item_id
+            self.populate_individual_tags(individual_tag, item_id_counter)
+        return self.tag_map_of_tagmaps
 
 class Relationship:
     def __init__(self, tag_obj_1:Tag, tag_obj_2:Tag):
@@ -56,15 +81,12 @@ class Collection(PrintString):
             self.item_obj_map[item.itemID] = item
 
 class ItemObj(PrintString):
-    def __init__(self, item_id:int, tag_map:dict[int, Tag], item_type_id:int, date_added:str, date_modified:str):
+    def __init__(self, item_id:int, tag_map:TagMap, item_type_id:int, date_added:str, date_modified:str):
         self.itemID = item_id
         self.tag_map = tag_map
         self.item_type_id = item_type_id
         self.date_added = date_added
         self.date_modified = date_modified
-    @property
-    def collection_name(self) -> str:
-        return self.collection_name
 
 class Field:
     """:arg value of field is determined by the tuple [itemID,valueID]"""
@@ -80,20 +102,37 @@ class Field:
     def __init__(self):"""
 
 class CollectionItem(ItemObj, PrintString):
-    def __init__(self, item_id:int, tag_map:dict[int, Tag], item_type_id:int, date_added:str, date_modified:str, field_obj:Field):
+    def __init__(self, item_id:int, tag_map:TagMap, item_type_id:int, date_added:str, date_modified:str, field_obj:Field):
         super().__init__(item_id, tag_map, item_type_id, date_added, date_modified)
         self.field_obj = field_obj
 
 
-class Annotation:
+class Annotation(ItemObj, PrintString):
     """Annotation Object is a type of item object, complete with its own unique itemID and list of tags.
     As such, annotationObj inherits from ItemObj"""
-    def __init__(self, item_id:int, tag_map:TagMap, item_type_id:int, date_added:str, date_modified:str, comment:str, text:str, parent_item_id:int,):
-        super().__init__(item_id,tag_map,item_type_id,date_added,date_modified)
+    def __init__(self, item_id:int, tag_map:TagMap, item_type_id:int, date_added:str, date_modified:str, comment:str, text:str, parent_item_id:int):
+        super().__init__(item_id, tag_map, item_type_id, date_added, date_modified)
         self.comment = comment
         self.text = text
         self.parent_item_id = parent_item_id
     # def assign_tag_map(self, ):
+
+class AnnotationMap(PrintString):
+    def __init__(self, tag_map:TagMap):
+        self.annotation_map: dict[AnnotationKey, Annotation] = {}
+        self.tag_map = tag_map
+    def process_raw_tuples(self, raw_annotation_list: list[tuple]):
+        for item in raw_annotation_list:
+            item_id, parent_item_id, text, comment, color, item_type_id, date_added, client_date_modified = item
+            key = AnnotationKey(item_id=item_id, parent_item_id=parent_item_id)
+            # TAGS ARE STORED IN SUBCOLLECTION OF ITEMID SO THAT WE CAN ACCESS THE ITEM ID ITSELF
+            self.annotation_map[key] = Annotation(item_id, self.get_sub_tag_map(item_id), item_type_id, date_added, client_date_modified, comment, text, parent_item_id)
+    def get_sub_tag_map(self, parent_id):
+        if self.tag_map.tag_map_of_tagmaps.get(parent_id) is None:
+            return TagMap()
+        else:
+            return self.tag_map.tag_map_of_tagmaps.get(parent_id)
+
 
 class BaseLibrary:
     """:arg
