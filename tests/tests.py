@@ -2,7 +2,7 @@ import unittest
 
 from pandas.io.sql import SQLiteDatabase
 
-from src.main import get_annotations, itemMap, annotation_map, get_collection_items, get_collections, instantiate_library, connect
+from src.main import get_annotations, itemMap, get_collection_items, get_collections, instantiate_library, connect
 from src.models import Tag, ItemObj, Collection, BaseLibrary
 
 cursor: SQLiteDatabase
@@ -19,7 +19,9 @@ class TestDataRetrieval(unittest.TestCase):
       #  self.assertEqual(type(get_shape(result_set)), type(get_shape(annotation_map_structure)))
     def test_get_items(self):
         result_set = get_items()
-       # item_map_structure: dict[int, ItemObj] = {1: ItemObj(1, 1, "testCollection", [], {1: T})}
+    # item_map_structure: dict[int, ItemObj] = {1: ItemObj(1, 1, "testCollection", [], {1: T})}
+                if self.tag_map.tag_map_of_tagmaps.get(item_id) is None:
+                continue
        """
     #Tests
     def test_collection(self):

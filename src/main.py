@@ -5,7 +5,7 @@ from typing import Tuple
 
 from pandas.io.sql import SQLiteDatabase
 
-from src.models import ItemObj, Annotation, BaseLibrary, TagMap, AnnotationMap
+from src.models import ItemObj, Annotation, BaseLibrary, TagMap, AnnotationMap, FieldMap
 
 # Initial connection, for now it's directory, but ideally we want users to be able to make a copy of this.... just in case
 logger = logging.getLogger(__name__)
@@ -46,32 +46,12 @@ def get_annotations(tag_map: TagMap):
     annotation_query = ("SELECT itemAnnotations.itemID, itemAnnotations.parentItemID, "
                         "itemAnnotations.text, itemAnnotations.comment, itemAnnotations.color, "
                         "items.itemTypeID, items.dateAdded, items.clientDateModified "
-                        "FROM itemAnnotations INNER JOIN items ON itemAnnotations.itemID == items.itemID")
+                        "FROM itemAnnotations INNER JOIN items ON itemAnnotations.itemID == items.itemID "
+                        "ORDER BY itemAnnotations.parentItemID ASC")
     cursor_execute = cursor.execute(annotation_query)
     annotation_list = cursor_execute.fetchall()
     annotation_map = AnnotationMap(tag_map)
     annotation_map.process_raw_tuples(annotation_list)
-    #TODO: Ok so, instantiate these annotation items, and then create a map where the key is a
-    # tuple of the individual itemID and the parentItemID. THEN, write a function that merges this annotation map with the other map of collection objects,
-    # so that the collectionItems are the parents and the annotation objects are the children.
-    # TODO: The collection map (general collection NOT the item, these are two different classes)
-    #  will have to contain all annotation items and collection items. The map of collection/annotation Items will have to be passed into this
-    #  larger list of collections BASED ON THE KEY OF THE COLLECTION ITEMS. THIS IS CRUCIAL. the key of the annotation ids is only useful
-    #  insofar as we're trying to get them into the actual collectionItem maps. Once they're in the maps then the collectionItem id from the
-    #  collectionItems table can be used to figure out the parentCollectionID. Because the tags are contained within the annotation map and the
-    #  collectionItem map, we don't have to worry about that. I think this will work.
-    """
-    try:
-        #Needs to be tagID
-        parent_key: int = annotation_item[2]
-        tag_id: int = annotation_item[0]
-        annotation_map[(parent_key, tag_id)] = Annotation(parent_key, annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
-    except (RuntimeError, TypeError, NameError):
-        # If for whatever reason there isn't a parent key
-        parent_key = noIdCount
-        annotation_map[parent_key] = Annotation(annotation_item[2], annotation_item[0], annotation_item[6], annotation_item[5], annotation_item[4], annotation_item[1])
-        noIdCount = + 1
-        """
     return annotation_map
 
 def get_tags():
@@ -81,25 +61,41 @@ def get_tags():
              "FROM itemTags INNER JOIN tags ON tags.tagID = itemTags.tagID ORDER BY itemTags.itemID ASC")
     cursor_execute = cursor.execute(query)
     raw_tag_list = cursor_execute.fetchall()
-    tag_map_obj = TagMap()
+    tag_map_obj:TagMap = TagMap()
     tag_map_obj.process_raw_tuples(raw_tag_list)
     return tag_map_obj
 
-
-def get_collection_items(library: BaseLibrary, raw_collection_list: list[tuple]):
+def get_collection_items(library: BaseLibrary, raw_collection_list: list[tuple], tag_map:TagMap, field_map:FieldMap):
     """:returns list of collectionItems. The way that Zotero is structured, literally EVERYTHING is an item,
     including annotations (and annotations are related to collection items)"""
+    # Select all items, and then full join so that if an item has multiple attachments, these attachments and items will have their own rows.
+    # There will be no primary key, but rather a foreign key that combines the itemID and parentItemID
     item_query = (
-        # Parent collection id is not needed for items, because items will be contained with collection map
-        "SELECT collectionItems.collectionID, collectionItems.itemID, collections.collectionName"
-        " FROM collections FULL JOIN collectionItems ON collections.collectionID = collectionItems.collectionID"
-        " WHERE collections.libraryID == ?")
+        # Select all parent items and their respective children items. The tricky thing with this is that collectionItems exclude anything out of a collection,
+        # so anything that's in a base library would be ignored. As such this query will select ALL items minus annotation and notes (those are dealt with separately'
+        "SELECT collectionItems.collectionID, items.itemID, collections.collectionName, items.itemTypeID, items.dateAdded, items.clientDateModified, itemAttachments.parentItemID, itemAttachments.linkMode, itemAttachments.path, itemAttachments.contentType "
+        "FROM items FULL JOIN collectionItems ON collectionItems.itemID = items.itemID "
+        "FULL JOIN itemAttachments ON itemAttachments.itemID = items.itemID "
+        "FULL JOIN collections ON collectionItems.collectionID = collections.collectionID "
+        "WHERE ((items.libraryID == ?) "
+        "AND (items.itemTypeID NOT IN (1, 28))) "
+        "ORDER BY items.itemId ASC "
+    )
+
+    # Query selects all distinct collectionIDs, from items that belong to a collection. This way annotations are ignored.
+    item_id_query = ("SELECT DISTINCT collectionItems.itemID FROM collectionItems "
+                     "INNER JOIN collections on collectionItems.collectionID = collections.collectionID "
+                     "WHERE collections.libraryID == ? "
+                     "ORDER BY itemID ASC ")
     # Add error handling for the list retrieval and then subsequent handling
     cursor_execute = (cursor.execute(item_query, (library.library_id,)))
     collection_item_list = cursor_execute.fetchall()
-
-    library.add_collection(raw_collection_list)
-    library.populate_collections(collection_item_list)
+    cursor_execute = (cursor.execute(item_id_query, (library.library_id,)))
+    collection_id_list = cursor_execute.fetchall()
+    # Check to make sure that all field values are accounted for
+    field_map.crosscheck_maps(collection_item_id_list=collection_id_list)
+    library.add_collection(raw_collection_list=raw_collection_list)
+    library.populate_collections(raw_item_list=collection_item_list, tag_map=tag_map, field_map=field_map)
     return
 
 def get_all_items(library: BaseLibrary):
@@ -114,12 +110,15 @@ def get_all_items(library: BaseLibrary):
 def get_field_items():
     field_query = (
         "SELECT itemData.itemID, itemData.fieldID, itemData.valueID, itemDataValues.value, fields.fieldName "
-        "FROM itemData LEFT JOIN fields ON itemData.fieldID = fields.fieldID"
-        " LEFT JOIN itemDataValues ON itemData.valueID = itemDataValues.valueID"
+        "FROM itemData LEFT JOIN fields ON itemData.fieldID = fields.fieldID "
+        "LEFT JOIN itemDataValues ON itemData.valueID = itemDataValues.valueID "
+        "ORDER BY itemID ASC"
     )
     cursor_execute = cursor.execute(field_query)
-    item_list = cursor_execute.fetchall()
-    return item_list
+    field_list = cursor_execute.fetchall()
+    field_map:FieldMap = FieldMap()
+    field_map.create_field_map(field_list)
+    return field_map
 
 def get_collections(library: BaseLibrary):
     """:returns a list of all collections
@@ -145,12 +144,13 @@ def main():
     library: BaseLibrary
 
     connect()
+    field_map = get_field_items()
     tag_map = get_tags()
     get_annotations(tag_map)
     library = instantiate_library()
     get_all_items(library)
-    collection_list = get_collections(library)
-    get_collection_items(library, collection_list)
+    collection_list = get_collections(library=library)
+    get_collection_items(library=library, raw_collection_list=collection_list, tag_map=tag_map, field_map=field_map)
 
     """
     If parentCollectionID === None
