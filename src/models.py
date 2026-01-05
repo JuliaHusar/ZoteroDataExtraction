@@ -89,7 +89,6 @@ class FieldMap(PrintString):
             if item_id in self.field_map:
                 continue
             else:
-             #   print(item_id)
                 unpaired_maps.append(item_id)
        # print(unpaired_maps.__sizeof__())
 
@@ -110,7 +109,7 @@ class Collection(PrintString):
         self.collection_name = collection_name
         self.parent_collection_ID= parent_collection_id
         self.item_obj_map: dict[int, 'CollectionItem'] = {}
-        self.floating_items: dict[int, 'Attachment'] = {}
+        self.free_floating_items: dict[int, 'Attachment'] = {}
     def add_parent_item_obj(self, collection_item: tuple, tag_map:dict[int, Tag], field_map: FieldMap):
         collection_id, item_id, collection_name, item_type_id, date_added, date_modified, parent_item_id, link_mode, path, content_type = collection_item
         if item_id not in field_map.field_map:
@@ -200,21 +199,18 @@ class BaseLibrary:
             if item_type_id == (3 or 28):
                 attachment_obj = Attachment(item_id, current_tag_map, item_type_id, date_added, date_modified, link_mode, path, content_type, parent_item_id, field_map.field_map.get(item_id))
                 if parent_item_id is not None: #If item is attachment object that is a part of an existing parent-item and not just free-floating
-                    print(self.collectionMap.get(current_parent_collection_id).item_obj_map)
                     self.collectionMap.get(current_parent_collection_id).item_obj_map.get(prev_id).attachment_list.append(attachment_obj)
-                else:
-                    self.collectionMap.get(0).floating_items[item_id] = attachment_obj
+                self.collectionMap.get(0).free_floating_items[item_id] = attachment_obj
             else:
                 if collection_id is not None:
                     self.collectionMap.get(collection_id).add_parent_item_obj(item, current_tag_map, field_map)
                     current_parent_collection_id = collection_id
-                else:
-                    self.collectionMap.get(0).add_parent_item_obj(item, current_tag_map, field_map)
-                    current_parent_collection_id = 0
-                print("iterated")
+                self.collectionMap.get(0).add_parent_item_obj(item, current_tag_map, field_map)
+                current_parent_collection_id = 0
                 prev_id = item_id
-            #Attachments have fields so we'll have to figure out a way of getting all of these into collection items
-            """
+            library_ref = self.collectionMap
+        #Attachments have fields so we'll have to figure out a way of getting all of these into collection items
+        """
         for key, collection_object_value in self.collectionMap.items():
             collection_object_value.add_item_obj()
             """

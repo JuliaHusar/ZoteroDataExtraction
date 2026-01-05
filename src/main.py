@@ -2,8 +2,7 @@ import sqlite3
 import logging
 from inspect import stack
 from typing import Tuple
-
-from pandas.io.sql import SQLiteDatabase
+import pandas as pd
 
 from src.models import ItemObj, Annotation, BaseLibrary, TagMap, AnnotationMap, FieldMap
 
@@ -12,8 +11,8 @@ logger = logging.getLogger(__name__)
 file_path = "zotero.sqlite"
 
 #Define global vars
-cursor: SQLiteDatabase
-connection: SQLiteDatabase
+cursor: sqlite3.Cursor
+connection: sqlite3.Connection
 
 itemMap: dict[int, ItemObj] = {}
 relationshipList = []
@@ -48,6 +47,8 @@ def get_annotations(tag_map: TagMap):
                         "items.itemTypeID, items.dateAdded, items.clientDateModified "
                         "FROM itemAnnotations INNER JOIN items ON itemAnnotations.itemID == items.itemID "
                         "ORDER BY itemAnnotations.parentItemID ASC")
+    pd
+
     cursor_execute = cursor.execute(annotation_query)
     annotation_list = cursor_execute.fetchall()
     annotation_map = AnnotationMap(tag_map)
@@ -151,6 +152,7 @@ def main():
     get_all_items(library)
     collection_list = get_collections(library=library)
     get_collection_items(library=library, raw_collection_list=collection_list, tag_map=tag_map, field_map=field_map)
+    library_ref = library
 
     """
     If parentCollectionID === None
