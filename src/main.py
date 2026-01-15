@@ -47,7 +47,6 @@ def get_annotations(tag_map: TagMap):
                         "items.itemTypeID, items.dateAdded, items.clientDateModified "
                         "FROM itemAnnotations INNER JOIN items ON itemAnnotations.itemID == items.itemID "
                         "ORDER BY itemAnnotations.parentItemID ASC")
-    pd
 
     cursor_execute = cursor.execute(annotation_query)
     annotation_list = cursor_execute.fetchall()
