@@ -6,6 +6,4 @@ export interface ApiOverride {
     addedElementIDs: []
 
     init({id, version, rootURI}): void
-    getTags(): object
-    getLibraries(): object
 }
