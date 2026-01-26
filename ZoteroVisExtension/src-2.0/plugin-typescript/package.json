@@ -1,0 +1,13 @@
+{
+  "name": "src-2.0",
+  "version": "1.0.0",
+  "description": "",
+  "main": "../preferences.js",
+  "scripts": {
+    "build": "esbuild bootstrap.ts --bundle --format=iife --target=firefox102 --outfile=../bootstrap.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

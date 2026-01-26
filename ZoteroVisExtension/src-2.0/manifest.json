@@ -1,15 +1,15 @@
 {
-	"manifest_version": 2,
-	"name": "Zotero Data Visualization",
-	"version": "2.0",
-	"description": "Extract tags from all Zotero objects and create a visualization with it",
-	"homepage_url": "https://github.com/JuliaHusar/ZoteroDataExtraction",
-	"applications": {
-		"zotero": {
-			"id": "ZoteroExtraction@juliahusar.com",
-			"update_url": "",
-			"strict_min_version": "7.0",
-			"strict_max_version": "7.1.*"
-		}
-	}
+  "manifest_version": 2,
+  "name": "Zotero Data Extraction",
+  "version": "2.0",
+  "description": "Extracts data from Zotero",
+  "homepage_url": "https://github.com/JuliaHusar/ZoteroDataExtraction",
+  "applications": {
+    "zotero": {
+      "id": "zotero-data-extraction@juliahusar.com",
+      "update_url": "https://zotero-download.s3.amazonaws.com/tmp/make-it-red/updates-2.0.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "7.1.*"
+    }
+  }
 }
