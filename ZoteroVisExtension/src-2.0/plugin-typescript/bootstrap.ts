@@ -1,7 +1,7 @@
 import {ApiOverride} from "./api-override";
 
 function log(msg) {
-	Zotero.debug("Make It Red: " + msg);
+	Zotero.debug("Zotero Knowledge Vis " + msg);
 }
 
 function install() {
@@ -11,7 +11,7 @@ function install() {
 async function startup({ id, version, rootURI }) {
 	log("Starting 2.0");
     Zotero.PreferencePanes.register({
-        pluginID: 'make-it-red@example.com',
+        pluginID: 'zotero-knowledge-vis@example.com',
         src: rootURI + 'preferences.xhtml',
         scripts: [rootURI + 'preferences.js']
     });

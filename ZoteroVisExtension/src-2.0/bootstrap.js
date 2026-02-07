@@ -35,9 +35,9 @@
           this.version = version;
           this.rootURI = rootURI;
           this.initialized = true;
-          Zotero.Server.Endpoints["/myAddon/tags"] = this.tagEndpoint;
-          Zotero.Server.Endpoints["/myAddon/collectionItem"] = this.collectionItemEndpoint;
-          Zotero.Server.Endpoints["/myAddon/annotationItem"] = this.annotationsEndpoint;
+          Zotero.Server.Endpoints["/api/tags"] = this.tagEndpoint;
+          Zotero.Server.Endpoints["/api/collectionItem"] = this.collectionItemEndpoint;
+          Zotero.Server.Endpoints["/api/annotationItem"] = this.annotationsEndpoint;
         },
         tagEndpoint: function() {
         },
@@ -63,10 +63,10 @@
           Zotero.debug(" Collection Endpoint method Called");
           try {
             switch (options.pathname) {
-              case "/myAddon/tags":
+              case "/api/tags":
                 return await getDataRequest(`SELECT itemTags.tagID, itemTags.itemID, itemTags.type, tags.name FROM itemTags 
                         INNER JOIN tags ON tags.tagID = itemTags.tagID ORDER BY itemTags.itemID ASC`, ["tagID", "itemID", "type", "name"]);
-              case "/myAddon/annotationItem":
+              case "/api/annotationItem":
                 return await getDataRequest(
                   `SELECT itemAnnotations.itemID, itemAnnotations.parentItemID, 
                         itemAnnotations.text, itemAnnotations.comment, itemAnnotations.color, 
@@ -75,7 +75,7 @@
                         ORDER BY itemAnnotations.parentItemID ASC`,
                   ["itemID", "parentItemID", "text", "comment", "color", "itemTypeID", "dateAdded", "clientDateModified"]
                 );
-              case "/myAddon/collectionItem":
+              case "/api/collectionItem":
                 return await getDataRequest(`SELECT collectionItems.collectionID, items.itemID, collections.collectionName, items.itemTypeID, items.dateAdded, 
                         items.clientDateModified, itemAttachments.parentItemID, itemAttachments.linkMode, itemAttachments.path, itemAttachments.contentType 
                         FROM items FULL JOIN collectionItems ON collectionItems.itemID = items.itemID 
@@ -101,7 +101,7 @@
     "bootstrap.ts"() {
       init_api_override();
       function log(msg) {
-        Zotero.debug("Make It Red: " + msg);
+        Zotero.debug("Zotero Knowledge Vis " + msg);
       }
       function install() {
         log("Installed 2.0");
@@ -109,7 +109,7 @@
       async function startup({ id, version, rootURI }) {
         log("Starting 2.0");
         Zotero.PreferencePanes.register({
-          pluginID: "make-it-red@example.com",
+          pluginID: "zotero-knowledge-vis@example.com",
           src: rootURI + "preferences.xhtml",
           scripts: [rootURI + "preferences.js"]
         });
