@@ -9,7 +9,7 @@
       "id": "zotero-data-extraction@juliahusar.com",
       "update_url": "https://zotero-download.s3.amazonaws.com/tmp/make-it-red/updates-2.0.json",
       "strict_min_version": "7.0",
-      "strict_max_version": "7.1.*"
+      "strict_max_version": "8.1.*"
     }
   }
 }
